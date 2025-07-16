@@ -1,0 +1,72 @@
+version: "3.8"
+
+services:
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    ports:
+      - "3001:3001"
+    networks:
+      - katakata-net
+
+  postgres:
+    image: postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: authdb
+    ports:
+      - "5432:5432"
+    networks:
+      - katakata-net
+
+  puisi-service:
+    build: ./puisi-service
+    container_name: puisi-service
+    ports:
+      - "3002:3002"
+    depends_on:
+      - postgres
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASS: password
+      DB_NAME: authdb
+      DB_PORT: 5432
+    networks:
+      - katakata-net
+
+  reaction-service:
+    build: ./reaction-service
+    container_name: reaction-service
+    ports:
+      - "3003:3003"
+    depends_on:
+      - postgres
+    environment:
+      DB_HOST: postgres
+      DB_USER: postgres
+      DB_PASS: password
+      DB_NAME: authdb
+      DB_PORT: 5432
+    networks:
+      - katakata-net
+
+
+  gateway:
+    image: nginx:stable
+    container_name: api-gateway
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - auth-service
+      - puisi-service
+    networks:
+      - katakata-net
+
+networks:
+  katakata-net:
+    driver: bridge
