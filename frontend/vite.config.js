@@ -1,7 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 
-// ✅ Config Vite yang benar untuk Tailwind
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(), 
+    tailwindcss({
+      theme: {
+        extend: {
+          colors: {
+            primary: '#8b5cf6'
+          }
+        }
+      }
+    })
+  ],
 })
