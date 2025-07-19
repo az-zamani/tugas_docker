@@ -1,18 +1,40 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   plugins: [
-    react(), 
+    react(),
     tailwindcss({
       theme: {
         extend: {
           colors: {
-            primary: '#8b5cf6'
-          }
-        }
-      }
-    })
+            primary: '#8b5cf6',
+          },
+        },
+      },
+    }),
   ],
-})
+  server: {
+    host: '0.0.0.0', // Important for Docker
+    port: 5173,
+    proxy: {
+      '/api': {
+        target: 'http://api-gateway:80', // Point to gateway container
+        changeOrigin: true,
+        secure: false,
+        configure: (proxy, _options) => {
+          proxy.on('error', (err, _req, _res) => {
+            console.log('proxy error', err);
+          });
+          proxy.on('proxyReq', (proxyReq, req, _res) => {
+            console.log('Sending Request to the Target:', req.method, req.url);
+          });
+          proxy.on('proxyRes', (proxyRes, req, _res) => {
+            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
+          });
+        },
+      },
+    },
+  },
+});

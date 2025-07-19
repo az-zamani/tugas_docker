@@ -1,29 +1,99 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import authApi from "../services/authApi";
 
 function Register() {
-  const [form, setForm] = useState({ username: "", password: "" });
+  const [form, setForm] = useState({ username: "", password: "", confirmPassword: "" });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear messages when user starts typing
+    if (error) setError("");
+    if (success) setSuccess("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+    setSuccess("");
+
+    // Validation
+    if (!form.username.trim() || !form.password.trim() || !form.confirmPassword.trim()) {
+      setError("Semua field harus diisi.");
+      setLoading(false);
+      return;
+    }
+
+    if (form.username.length < 3) {
+      setError("Username minimal 3 karakter.");
+      setLoading(false);
+      return;
+    }
+
+    if (form.username.length > 20) {
+      setError("Username maksimal 20 karakter.");
+      setLoading(false);
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(form.username)) {
+      setError("Username hanya boleh mengandung huruf, angka, dan underscore.");
+      setLoading(false);
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setError("Password minimal 6 karakter.");
+      setLoading(false);
+      return;
+    }
+
+    if (form.password !== form.confirmPassword) {
+      setError("Password dan konfirmasi password tidak cocok.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Simulasi API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (form.username.length < 3) {
-        setError("Username minimal 3 karakter.");
-      } else if (form.password.length < 6) {
-        setError("Password minimal 6 karakter.");
+      const response = await authApi.post('/register', {
+        username: form.username.trim(),
+        password: form.password
+      });
+
+      if (response.data.id) {
+        setSuccess("Registrasi berhasil! Mengalihkan ke halaman login...");
+        
+        // Navigate to login after brief delay
+        setTimeout(() => {
+          navigate("/login");
+        }, 2000);
       } else {
-        alert("Pendaftaran berhasil! Silakan login.");
-        // navigate("/");
+        setError("Registrasi gagal. Silakan coba lagi.");
       }
-    } catch {
-      setError("Gagal daftar. Username mungkin sudah dipakai.");
+    } catch (err) {
+      console.error('Register error:', err);
+      
+      // Handle different error types
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else if (err.response?.status === 400) {
+        setError("Username sudah digunakan atau data tidak valid.");
+      } else if (err.response?.status >= 500) {
+        setError("Server error. Silakan coba lagi nanti.");
+      } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+        setError("Tidak dapat terhubung ke server. Periksa koneksi internet Anda.");
+      } else {
+        setError("Terjadi kesalahan saat mendaftar. Silakan coba lagi.");
+      }
     } finally {
       setLoading(false);
     }
@@ -32,7 +102,7 @@ function Register() {
   return (
     <div className="min-h-screen w-full flex items-center justify-center bg-gradient-to-br from-[#0F0F0F] to-[#0B0B0B] p-4 sm:p-6 lg:p-8">
       <div className="group cursor-pointer transform transition-all duration-500 hover:scale-[1.02] w-full max-w-sm sm:max-w-md lg:max-w-lg xl:max-w-xl">
-        <div className="text-white rounded-3xl border border-purple-500/20 bg-gradient-to-tr from-[#0F0F0F] to-[#0B0B0B] shadow-2xl duration-700 z-10 relative backdrop-blur-xl hover:border-purple-500/40 overflow-hidden hover:shadow-purple-500/10 hover:shadow-3xl w-full min-h-[650px] sm:min-h-[700px] lg:min-h-[750px]">
+        <div className="text-white rounded-3xl border border-purple-500/20 bg-gradient-to-tr from-[#0F0F0F] to-[#0B0B0B] shadow-2xl duration-700 z-10 relative backdrop-blur-xl hover:border-purple-500/40 overflow-hidden hover:shadow-purple-500/10 hover:shadow-3xl w-full min-h-[700px] sm:min-h-[750px] lg:min-h-[800px]">
           
           {/* Background Effects */}
           <div className="absolute inset-0 z-0 overflow-hidden">
@@ -73,21 +143,27 @@ function Register() {
               </div>
 
               {/* Form */}
-              <div className="space-y-4 sm:space-y-5 w-full max-w-sm">
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5 w-full max-w-sm">
                 <div className="space-y-2">
                   <label htmlFor="username" className="block text-xs sm:text-sm font-medium text-white/80 text-left">
                     Username
                   </label>
                   <input
                     id="username"
+                    name="username"
                     type="text"
                     placeholder="Pilih username unik"
                     value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm"
+                    onChange={handleChange}
+                    disabled={loading}
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     required
                     minLength={3}
+                    maxLength={20}
                   />
+                  <p className="text-white/60 text-xs sm:text-sm">
+                    3-20 karakter, hanya huruf, angka, dan underscore
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -96,11 +172,31 @@ function Register() {
                   </label>
                   <input
                     id="password"
+                    name="password"
                     type="password"
                     placeholder="Buat password yang kuat"
                     value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm"
+                    onChange={handleChange}
+                    disabled={loading}
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    required
+                    minLength={6}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="confirmPassword" className="block text-xs sm:text-sm font-medium text-white/80 text-left">
+                    Konfirmasi Password
+                  </label>
+                  <input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    placeholder="Ketik ulang password"
+                    value={form.confirmPassword}
+                    onChange={handleChange}
+                    disabled={loading}
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     required
                     minLength={6}
                   />
@@ -109,14 +205,32 @@ function Register() {
                   </p>
                 </div>
 
+                {/* Error Message */}
                 {error && (
                   <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 animate-pulse">
-                    <p className="text-red-200 text-xs sm:text-sm">{error}</p>
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 text-red-400 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-red-200 text-xs sm:text-sm">{error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Success Message */}
+                {success && (
+                  <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 animate-pulse">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 text-green-400 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-green-200 text-xs sm:text-sm">{success}</p>
+                    </div>
                   </div>
                 )}
 
                 <button
-                  onClick={handleSubmit}
+                  type="submit"
                   disabled={loading}
                   className="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2.5 sm:py-3 px-4 rounded-xl font-medium text-sm sm:text-base hover:from-purple-600 hover:to-pink-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-transparent disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-purple-500/25"
                 >
@@ -132,7 +246,7 @@ function Register() {
                     "Daftar"
                   )}
                 </button>
-              </div>
+              </form>
 
               {/* Divider */}
               <div className="w-1/3 h-0.5 bg-gradient-to-r from-transparent via-purple-500 to-transparent rounded-full transform group-hover:w-1/2 group-hover:h-1 transition-all duration-500 animate-pulse"></div>
@@ -142,8 +256,9 @@ function Register() {
                 <p className="text-gray-300 text-xs sm:text-sm leading-relaxed transform group-hover:text-gray-200 transition-colors duration-300">
                   Sudah punya akun?{" "}
                   <button
-                    onClick={() => alert("Navigasi ke halaman login")}
+                    onClick={() => navigate("/login")}
                     className="text-purple-300 hover:text-purple-200 font-medium transition-colors duration-200 underline"
+                    disabled={loading}
                   >
                     Login di sini
                   </button>
@@ -153,11 +268,17 @@ function Register() {
                 <div className="text-xs text-gray-400 max-w-xs mx-auto">
                   <p>
                     Dengan mendaftar, Anda menyetujui{" "}
-                    <button className="text-purple-300 hover:text-purple-200 underline transition-colors duration-200">
+                    <button 
+                      className="text-purple-300 hover:text-purple-200 underline transition-colors duration-200"
+                      onClick={() => alert("Fitur Syarat & Ketentuan belum tersedia")}
+                    >
                       Syarat & Ketentuan
                     </button>{" "}
                     dan{" "}
-                    <button className="text-purple-300 hover:text-purple-200 underline transition-colors duration-200">
+                    <button 
+                      className="text-purple-300 hover:text-purple-200 underline transition-colors duration-200"
+                      onClick={() => alert("Fitur Kebijakan Privasi belum tersedia")}
+                    >
                       Kebijakan Privasi
                     </button>{" "}
                     kami.

@@ -1,27 +1,83 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import authApi from "../services/authApi";
 
 function Login() {
   const [form, setForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setForm(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear messages when user starts typing
+    if (error) setError("");
+    if (success) setSuccess("");
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
-    
+    setSuccess("");
+
+    // Basic validation
+    if (!form.username.trim() || !form.password.trim()) {
+      setError("Username dan password harus diisi.");
+      setLoading(false);
+      return;
+    }
+
+    if (form.password.length < 6) {
+      setError("Password minimal 6 karakter.");
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Simulasi API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      if (form.username === "admin" && form.password === "admin") {
-        alert("Login berhasil!");
-        // navigate("/feed");
+      const response = await authApi.post('/login', {
+        username: form.username.trim(),
+        password: form.password
+      });
+
+      if (response.data.token) {
+        // Store authentication data
+        localStorage.setItem("token", response.data.token);
+        if (response.data.user) {
+          localStorage.setItem("user", JSON.stringify(response.data.user));
+        }
+        
+        setSuccess("Login berhasil! Mengalihkan...");
+        
+        // Navigate after brief delay for better UX
+        setTimeout(() => {
+          navigate("/feed");
+        }, 1000);
       } else {
-        setError("Username atau password salah.");
+        setError("Login gagal: Token tidak diterima.");
       }
-    } catch {
-      setError("Username atau password salah.");
+    } catch (err) {
+      console.error('Login error:', err);
+      
+      // Handle different error types
+      if (err.response?.data?.message) {
+        setError(err.response.data.message);
+      } else if (err.response?.status === 400) {
+        setError("Username atau password tidak valid.");
+      } else if (err.response?.status === 401) {
+        setError("Username atau password salah.");
+      } else if (err.response?.status >= 500) {
+        setError("Server error. Silakan coba lagi nanti.");
+      } else if (err.code === 'NETWORK_ERROR' || !err.response) {
+        setError("Tidak dapat terhubung ke server. Periksa koneksi internet Anda.");
+      } else {
+        setError("Terjadi kesalahan saat login. Silakan coba lagi.");
+      }
     } finally {
       setLoading(false);
     }
@@ -78,11 +134,13 @@ function Login() {
                   </label>
                   <input
                     id="username"
+                    name="username"
                     type="text"
                     placeholder="Masukkan username"
                     value={form.username}
-                    onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm"
+                    onChange={handleChange}
+                    disabled={loading}
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     required
                   />
                 </div>
@@ -93,18 +151,38 @@ function Login() {
                   </label>
                   <input
                     id="password"
+                    name="password"
                     type="password"
                     placeholder="Masukkan password"
                     value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm"
+                    onChange={handleChange}
+                    disabled={loading}
+                    className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed"
                     required
                   />
                 </div>
 
+                {/* Error Message */}
                 {error && (
                   <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-3 animate-pulse">
-                    <p className="text-red-200 text-xs sm:text-sm">{error}</p>
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 text-red-400 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-red-200 text-xs sm:text-sm">{error}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Success Message */}
+                {success && (
+                  <div className="bg-green-500/20 border border-green-500/30 rounded-lg p-3 animate-pulse">
+                    <div className="flex items-center">
+                      <svg className="w-4 h-4 text-green-400 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-green-200 text-xs sm:text-sm">{success}</p>
+                    </div>
                   </div>
                 )}
 
@@ -135,8 +213,9 @@ function Login() {
                 <p className="text-gray-300 text-xs sm:text-sm leading-relaxed transform group-hover:text-gray-200 transition-colors duration-300">
                   Belum punya akun?{" "}
                   <button
-                    onClick={() => alert("Fitur daftar belum tersedia")}
+                    onClick={() => navigate("/register")}
                     className="text-purple-300 hover:text-purple-200 font-medium transition-colors duration-200 underline"
+                    disabled={loading}
                   >
                     Daftar sekarang
                   </button>
@@ -144,6 +223,7 @@ function Login() {
                 <button 
                   onClick={() => alert("Fitur lupa password belum tersedia")}
                   className="text-purple-300 hover:text-purple-200 text-xs sm:text-sm transition-colors duration-200 block mx-auto"
+                  disabled={loading}
                 >
                   Lupa password?
                 </button>

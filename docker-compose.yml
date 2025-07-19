@@ -1,59 +1,130 @@
 version: "3.8"
 
 services:
+  # Auth Service Database
+  auth-db:
+    image: postgres:15
+    container_name: auth-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: auth_db
+    networks:
+      - katakata-net
+    volumes:
+      - auth_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Puisi Service Database  
+  puisi-db:
+    image: postgres:15
+    container_name: puisi-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: puisi_db
+    networks:
+      - katakata-net
+    volumes:
+      - puisi_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d puisi_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Reaction Service Database
+  reaction-db:
+    image: postgres:15
+    container_name: reaction-db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: reaction_db
+    networks:
+      - katakata-net
+    volumes:
+      - reaction_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reaction_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Auth Service
   auth-service:
     build: ./auth-service
     container_name: auth-service
     ports:
       - "3001:3001"
+    env_file:
+      - ./auth-service/.env
+    depends_on:
+      auth-db:
+        condition: service_healthy
     networks:
       - katakata-net
+    restart: unless-stopped
 
-  postgres:
-    image: postgres
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: authdb
-    ports:
-      - "5432:5432"
-    networks:
-      - katakata-net
-
+  # Puisi Service
   puisi-service:
     build: ./puisi-service
     container_name: puisi-service
     ports:
       - "3002:3002"
+    env_file:
+      - ./puisi-service/.env
     depends_on:
-      - postgres
-    environment:
-      DB_HOST: postgres
-      DB_USER: postgres
-      DB_PASS: password
-      DB_NAME: authdb
-      DB_PORT: 5432
+      puisi-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
     networks:
       - katakata-net
+    restart: unless-stopped
 
+  # Reaction Service
   reaction-service:
     build: ./reaction-service
     container_name: reaction-service
     ports:
       - "3003:3003"
+    env_file:
+      - ./reaction-service/.env
     depends_on:
-      - postgres
-    environment:
-      DB_HOST: postgres
-      DB_USER: postgres
-      DB_PASS: password
-      DB_NAME: authdb
-      DB_PORT: 5432
+      reaction-db:
+        condition: service_healthy
+      auth-service:
+        condition: service_started
+      puisi-service:
+        condition: service_started
     networks:
       - katakata-net
+    restart: unless-stopped
 
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: frontend
+    ports:
+      - "5173:5173"
+    networks:
+      - katakata-net
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
 
+  # API Gateway
   gateway:
     image: nginx:stable
     container_name: api-gateway
@@ -64,9 +135,20 @@ services:
     depends_on:
       - auth-service
       - puisi-service
+      - reaction-service
+      - frontend  # Make sure this is here
     networks:
       - katakata-net
+    restart: always
 
 networks:
   katakata-net:
     driver: bridge
+
+volumes:
+  auth_data:
+    driver: local
+  puisi_data:
+    driver: local
+  reaction_data:
+    driver: local
